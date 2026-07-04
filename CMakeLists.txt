@@ -32,10 +32,10 @@ file(GLOB_RECURSE SHADER_SOURCES
 set(SHADER_OUTPUTS "")
 foreach(shader ${SHADER_SOURCES})
     get_filename_component(shader_name ${shader} NAME)
-    set(shader_out ${CMAKE_SOURCE_DIR}/Bin/shaders/${shader_name}.spv)
+    set(shader_out ${CMAKE_SOURCE_DIR}/Bin_shaders/${shader_name}.spv)
     add_custom_command(
         OUTPUT  ${shader_out}
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/Bin/shaders
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/Bin_shaders
         COMMAND Vulkan::glslc ${shader} -o ${shader_out}
         DEPENDS ${shader}
         VERBATIM
@@ -44,7 +44,7 @@ foreach(shader ${SHADER_SOURCES})
 endforeach()
 add_custom_target(Shaders DEPENDS ${SHADER_OUTPUTS})
 
-# --- VulkanApp static library ---
+# --- VulkanApp static library (volk.c lives here since it owns Vulkan loading) ---
 file(GLOB_RECURSE VULKANAPP_SOURCES
     ${CMAKE_SOURCE_DIR}/Source_support/VulkanApp/*.cpp
     ${CMAKE_SOURCE_DIR}/Source_support/VulkanApp/*.h
@@ -69,44 +69,36 @@ target_compile_options(VulkanApp PRIVATE
     $<$<CONFIG:Release>:/O2 /W4>
 )
 
-# --- VulkanRenderer static library ---
-file(GLOB_RECURSE VULKANRENDERER_SOURCES
-    ${CMAKE_SOURCE_DIR}/Source_support/VulkanRenderer/*.cpp
-    ${CMAKE_SOURCE_DIR}/Source_support/VulkanRenderer/*.h
-)
-
-add_library(VulkanRenderer STATIC ${VULKANRENDERER_SOURCES})
-
-target_include_directories(VulkanRenderer PUBLIC
-    ${CMAKE_SOURCE_DIR}/Source_support/VulkanRenderer
-)
-
-target_link_libraries(VulkanRenderer PUBLIC VulkanApp)
-
-target_compile_options(VulkanRenderer PRIVATE
-    $<$<CONFIG:Debug>:/Od /Zi /W4>
-    $<$<CONFIG:Release>:/O2 /W4>
-)
-
-# --- StubApp static library ---
-file(GLOB_RECURSE STUBAPP_SOURCES
-    ${CMAKE_SOURCE_DIR}/Source_support/StubApp/*.cpp
-    ${CMAKE_SOURCE_DIR}/Source_support/StubApp/*.h
-)
-
-add_library(StubApp STATIC ${STUBAPP_SOURCES})
-
-target_include_directories(StubApp PUBLIC
-    ${CMAKE_SOURCE_DIR}/Source_support/StubApp
-    ${CMAKE_SOURCE_DIR}/Source_support
-)
-
-target_link_libraries(StubApp PUBLIC VulkanApp VulkanRenderer)
-
-target_compile_options(StubApp PRIVATE
-    $<$<CONFIG:Debug>:/Od /Zi /W4>
-    $<$<CONFIG:Release>:/O2 /W4>
-)
+# --- One library per subdirectory of Source_support (except VulkanApp) ---
+file(GLOB SUPPORT_DIRS LIST_DIRECTORIES true ${CMAKE_SOURCE_DIR}/Source_support/*)
+set(SUPPORT_LIBS "")
+foreach(dir ${SUPPORT_DIRS})
+    if(IS_DIRECTORY ${dir})
+        get_filename_component(lib_name ${dir} NAME)
+        if(lib_name STREQUAL "VulkanApp")
+            continue()
+        endif()
+        file(GLOB_RECURSE lib_sources ${dir}/*.cpp ${dir}/*.h)
+        if(lib_sources)
+            add_library(${lib_name} STATIC ${lib_sources})
+            target_include_directories(${lib_name} PUBLIC
+                ${dir}
+                ${CMAKE_SOURCE_DIR}/Source_support
+            )
+            target_link_libraries(${lib_name} PUBLIC VulkanApp)
+            if(lib_name STREQUAL "VulkanRenderer")
+                target_compile_definitions(${lib_name} PRIVATE
+                    SHADER_DIR="${CMAKE_SOURCE_DIR}/Bin_shaders/"
+                )
+            endif()
+            target_compile_options(${lib_name} PRIVATE
+                $<$<CONFIG:Debug>:/Od /Zi /W4>
+                $<$<CONFIG:Release>:/O2 /W4>
+            )
+            list(APPEND SUPPORT_LIBS ${lib_name})
+        endif()
+    endif()
+endforeach()
 
 # --- One executable per .cpp in Source_apps/ ---
 file(GLOB APP_MAINS ${CMAKE_SOURCE_DIR}/Source_apps/*.cpp)
@@ -116,7 +108,7 @@ foreach(app_main ${APP_MAINS})
 
     add_executable(${app_name} ${app_main})
 
-    target_link_libraries(${app_name} PRIVATE StubApp)
+    target_link_libraries(${app_name} PRIVATE ${SUPPORT_LIBS})
     add_dependencies(${app_name} Shaders)
 
     target_compile_options(${app_name} PRIVATE

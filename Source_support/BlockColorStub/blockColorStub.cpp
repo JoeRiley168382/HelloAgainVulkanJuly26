@@ -1,6 +1,6 @@
-#include "stub.h"
+#include "blockColorStub.h"
 
-void StubApp::Start()
+void BlockColorStub::Start()
 {
     mContext.Setup(mWinWidth, mWinHeight);
     mRenderer.Setup(mContext.mDevice.mLogicalDevice,
@@ -14,7 +14,7 @@ void StubApp::Start()
                     mContext.mWindow.mSwapchainExtent);
 }
 
-void StubApp::RunLoop()
+void BlockColorStub::RunLoop()
 {
     bool IsRunning = true;
     uint64_t numFrames = 0;
@@ -31,6 +31,6 @@ void StubApp::RunLoop()
     }
 }
 
-void StubApp::Stop()
+void BlockColorStub::Stop()
 {
 }

@@ -8,6 +8,11 @@ VulkanRenderer::~VulkanRenderer()
 {
     if(hDevice != VK_NULL_HANDLE)
         vkDeviceWaitIdle(hDevice);
+    for(uint32_t i = 0; i < mPipelineList.size(); i++)
+    {
+        vkDestroyPipeline(hDevice, mPipelineList[i], nullptr);
+        vkDestroyPipelineLayout(hDevice, mPipeLayoutList[i], nullptr);
+    }
     vkDestroyFence(hDevice, mFrameInFlight[1], nullptr);
     vkDestroySemaphore(hDevice, mImageAvailable[1], nullptr);
     vkDestroyFence(hDevice, mFrameInFlight[0], nullptr);
@@ -83,6 +88,13 @@ bool VulkanRenderer::Setup(
     return true;
 }
 
+void VulkanRenderer::AddPipeline(VkPipeline const aPipe, VkPipelineLayout const aLO)
+{
+    if(aPipe == VK_NULL_HANDLE || aLO == VK_NULL_HANDLE)
+        return;
+    mPipelineList.push_back(aPipe);
+    mPipeLayoutList.push_back(aLO);
+}
 
 void VulkanRenderer::RenderFrame()
 {
@@ -158,7 +170,26 @@ void VulkanRenderer::RecordCommands()
     renderInfo.layerCount = 1;
     renderInfo.colorAttachmentCount = 1;
     renderInfo.pColorAttachments = &colorAttach;
+    //TODO: Need to figure out how switching pipelines will work in terms of passing messages from the app class
     vkCmdBeginRendering(mCmdBuff[mCurrentFrameInd], &renderInfo);
+    //Need this since viewport is dynamically set
+    VkViewport viewport{};
+    viewport.width = (float)hRenderExtent.width;
+    viewport.height = (float)hRenderExtent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(mCmdBuff[mCurrentFrameInd], 0, 1, &viewport);
+    //Need this since scissor is dynamically set
+    VkRect2D scissor{};
+    scissor.extent = hRenderExtent;
+    vkCmdSetScissor(mCmdBuff[mCurrentFrameInd], 0, 1, &scissor);
+    
+    if(mPipelineList.empty() == false)
+    {
+        vkCmdBindPipeline(mCmdBuff[mCurrentFrameInd], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineList[mCurrentPipelineInd]);
+        //TODO: change this when using buffers!!
+        vkCmdDraw(mCmdBuff[mCurrentFrameInd], 3, 1, 0, 0);
+    }
     vkCmdEndRendering(mCmdBuff[mCurrentFrameInd]);
 
     VkImageMemoryBarrier2 color2undefImgBarr{};

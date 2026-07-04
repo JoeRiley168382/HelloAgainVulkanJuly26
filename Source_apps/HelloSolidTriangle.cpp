@@ -1,9 +1,9 @@
 
-#include "BlockColorStub/blockColorStub.h"
+#include "BeeTriangleStub/triangleStubApp0.h"
 
 int main() 
 {
-    BlockColorStub app{};
+    BeeTriangleApp app{};
     app.Start();
     app.RunLoop();
     app.Stop();

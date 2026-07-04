@@ -3,7 +3,7 @@
 #include "VulkanApp/context.h"
 #include "VulkanRenderer/renderer.h"
 
-class StubApp {
+class BlockColorStub {
 public:
     void Start();
     void RunLoop();

@@ -9,7 +9,8 @@ public:
     VulkanRenderer();
     ~VulkanRenderer();
     bool Setup(VkDevice, VkQueue, VkQueue, uint32_t, VkSwapchainKHR const, const std::vector<VkImageView>&, const std::vector<VkImage>&, VkFormat, VkExtent2D);
-
+    //When we setup the app or add another class to handle data processing we can yank the info from the Vulkanpipeline class here instead of having to inherit it
+    void AddPipeline(VkPipeline const, VkPipelineLayout const);
     void RenderFrame();
     //Handles: we obtain these from a VulkanApp object
     VkDevice hDevice = VK_NULL_HANDLE;
@@ -25,19 +26,14 @@ public:
 
 //May be in get/set hell with this down the line but I'm not sure if anything else will want to interfere with these
 protected:
-    // //sets up the (current) pipeline 
-    // void SetupPipeline();
-    // //sets up the command buffer
-    // void SetupCommands();
     //TRUE = we can use the swapchain as is. FALSE = we need to recreate it (somehow)
     bool AcquireSwapchain();
     //TODO: Maybe need an UpdateState/UpdateUniforms down the line?
     void RecordCommands();
     void SubmitCommands();
     //Members: these belong to us in full
-    //Just one pipeline for now: we may need to see about multiple pipelines once we're actually passing data in
-    //std::vector<VkPipeline> mPipelineList{};
-    //VkPipeline mCurrentPipeline = VK_NULL_HANDLE;
+    std::vector<VkPipeline> mPipelineList{};
+    std::vector<VkPipelineLayout> mPipeLayoutList{};
     VkCommandPool mCmdPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> mCmdBuff{};
     std::vector<VkSemaphore> mImageAvailable{};
@@ -45,6 +41,7 @@ protected:
     std::vector<VkFence> mFrameInFlight{};
     uint32_t mCurrentImageInd = 0;
     uint32_t mCurrentFrameInd = 0;
+    uint32_t mCurrentPipelineInd = 0;
 };
 
 
