@@ -1,0 +1,14 @@
+# Build system
+Build/
+Bin/
+Lib/
+
+# MSVC
+*.pdb
+*.ilk
+
+# VSCode
+.vscode/
+
+# CMake
+CMakeSettings.json
