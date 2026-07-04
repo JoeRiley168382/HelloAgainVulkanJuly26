@@ -3,6 +3,7 @@
 VulkanWindow::~VulkanWindow()
 {
     if(hDevice != nullptr) {
+        vkDeviceWaitIdle(hDevice->mLogicalDevice);
         for(VkImageView view : mSwapViewList)
             vkDestroyImageView(hDevice->mLogicalDevice, view, nullptr);
         if(mSwapchain != VK_NULL_HANDLE)

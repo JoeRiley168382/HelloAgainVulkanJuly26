@@ -37,13 +37,14 @@ protected:
     //Members: these belong to us in full
     //Just one pipeline for now: we may need to see about multiple pipelines once we're actually passing data in
     //std::vector<VkPipeline> mPipelineList{};
-    VkPipeline mCurrentPipeline = VK_NULL_HANDLE;
+    //VkPipeline mCurrentPipeline = VK_NULL_HANDLE;
     VkCommandPool mCmdPool = VK_NULL_HANDLE;
-    VkCommandBuffer mCmdBuff = VK_NULL_HANDLE;
-    VkSemaphore mCurrentImageAvailable = VK_NULL_HANDLE;
-    VkSemaphore mCurrentRenderFinished = VK_NULL_HANDLE;
-    VkFence mCurrentFrameInFlight = VK_NULL_HANDLE;
+    std::vector<VkCommandBuffer> mCmdBuff{};
+    std::vector<VkSemaphore> mImageAvailable{};
+    std::vector<VkSemaphore> mRenderFinished{};
+    std::vector<VkFence> mFrameInFlight{};
     uint32_t mCurrentImageInd = 0;
+    uint32_t mCurrentFrameInd = 0;
 };
 
 
