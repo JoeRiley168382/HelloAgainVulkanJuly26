@@ -57,6 +57,7 @@ add_library(VulkanApp STATIC
 
 target_include_directories(VulkanApp PUBLIC
     ${CMAKE_SOURCE_DIR}/Source_support/VulkanApp
+    ${CMAKE_SOURCE_DIR}/Source_support
     ${CMAKE_SOURCE_DIR}/External
     ${Vulkan_INCLUDE_DIRS}
     $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>

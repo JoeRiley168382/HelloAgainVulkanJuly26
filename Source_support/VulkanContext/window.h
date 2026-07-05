@@ -16,6 +16,7 @@ public:
     ~VulkanWindow();
     bool SetupWindow(VkInstance,  int,  int);
     bool SetupSwapchain(VulkanDevice& aDevice);
+    bool RecreateSwapchain();
     SDL_Window* mWindow = nullptr;
     VkSurfaceKHR mSurface = VK_NULL_HANDLE;
     VkSwapchainKHR mSwapchain = VK_NULL_HANDLE;

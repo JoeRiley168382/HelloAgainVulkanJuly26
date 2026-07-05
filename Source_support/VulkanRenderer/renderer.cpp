@@ -54,6 +54,8 @@ bool VulkanRenderer::Setup(
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmdPoolInfo.queueFamilyIndex = hGraphicsQueueFamilyIndex;
     cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    if(mCmdPool != VK_NULL_HANDLE)
+        vkDestroyCommandPool(hDevice, mCmdPool, nullptr);
     if(vkCreateCommandPool(hDevice, &cmdPoolInfo, nullptr, &mCmdPool) != VK_SUCCESS)
         return false;
     mCmdBuff.resize(2);
@@ -65,7 +67,13 @@ bool VulkanRenderer::Setup(
     if(vkAllocateCommandBuffers(hDevice, &cmdBuffInfo, mCmdBuff.data()) != VK_SUCCESS)
         return false;
     
-   for (uint32_t i = 0; i < aImageList.size(); i++) {
+    if(!mRenderFinished.empty())
+    {
+        for(VkSemaphore &sem : mRenderFinished)
+            vkDestroySemaphore(hDevice, sem, nullptr);
+        mRenderFinished.clear();
+    }
+    for (uint32_t i = 0; i < aImageList.size(); i++) {
         VkSemaphoreCreateInfo renderFinishedInfo{};
         renderFinishedInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         VkSemaphore currentRenderFinished = VK_NULL_HANDLE;
@@ -73,18 +81,19 @@ bool VulkanRenderer::Setup(
             return false;
         mRenderFinished.push_back(currentRenderFinished);
     }
-    mImageAvailable.resize(2);
-    mFrameInFlight.resize(2);
-    VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    vkCreateFence(hDevice, &fenceInfo, nullptr, &mFrameInFlight[0]);
-    vkCreateFence(hDevice, &fenceInfo, nullptr, &mFrameInFlight[1]);
-    VkSemaphoreCreateInfo imgAvailInfo{};
-    imgAvailInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    vkCreateSemaphore(hDevice, &imgAvailInfo, nullptr, &mImageAvailable[0]);
-    vkCreateSemaphore(hDevice, &imgAvailInfo, nullptr, &mImageAvailable[1]);
-
+    if(mFrameInFlight.empty()) {
+        mImageAvailable.resize(2);
+        mFrameInFlight.resize(2);
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        vkCreateFence(hDevice, &fenceInfo, nullptr, &mFrameInFlight[0]);
+        vkCreateFence(hDevice, &fenceInfo, nullptr, &mFrameInFlight[1]);
+        VkSemaphoreCreateInfo imgAvailInfo{};
+        imgAvailInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        vkCreateSemaphore(hDevice, &imgAvailInfo, nullptr, &mImageAvailable[0]);
+        vkCreateSemaphore(hDevice, &imgAvailInfo, nullptr, &mImageAvailable[1]);
+    }
     return true;
 }
 
@@ -96,14 +105,15 @@ void VulkanRenderer::AddPipeline(VkPipeline const aPipe, VkPipelineLayout const 
     mPipeLayoutList.push_back(aLO);
 }
 
-void VulkanRenderer::RenderFrame()
+bool VulkanRenderer::RenderFrame()
 {
     vkWaitForFences(hDevice, 1, &mFrameInFlight[mCurrentFrameInd], VK_TRUE, UINT64_MAX);
     vkResetFences(hDevice, 1, &mFrameInFlight[mCurrentFrameInd]);
-    if(!AcquireSwapchain()) return;
+    if(!AcquireSwapchain()) return false;
     RecordCommands();
     SubmitCommands();
-    
+    //This info is passed through submitCommands, helps catch swapchain resizes a frame earlier
+    if(mSwapchainBeingRecreated) return false;
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
@@ -111,18 +121,21 @@ void VulkanRenderer::RenderFrame()
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &hSwapchain;
     presentInfo.pImageIndices = &mCurrentImageInd;
-    vkQueuePresentKHR(hPresentQueue, &presentInfo);
+    VkResult presentResult = vkQueuePresentKHR(hPresentQueue, &presentInfo);
+    if(presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
+        return false;
     mCurrentFrameInd += 1;
     mCurrentFrameInd %= 2;
+    return true;
 }
 
 bool VulkanRenderer::AcquireSwapchain()
 {
     VkResult result = vkAcquireNextImageKHR(hDevice, hSwapchain, UINT64_MAX, mImageAvailable[mCurrentFrameInd], VK_NULL_HANDLE, &mCurrentImageInd);
-    if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+    if(result == VK_ERROR_OUT_OF_DATE_KHR)
         return false;
-    else
-        return true;
+    mSwapchainBeingRecreated = result == VK_SUBOPTIMAL_KHR;
+    return result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
 }
 
 void VulkanRenderer::RecordCommands()

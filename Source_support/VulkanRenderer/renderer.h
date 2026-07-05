@@ -11,7 +11,7 @@ public:
     bool Setup(VkDevice, VkQueue, VkQueue, uint32_t, VkSwapchainKHR const, const std::vector<VkImageView>&, const std::vector<VkImage>&, VkFormat, VkExtent2D);
     //When we setup the app or add another class to handle data processing we can yank the info from the Vulkanpipeline class here instead of having to inherit it
     void AddPipeline(VkPipeline const, VkPipelineLayout const);
-    void RenderFrame();
+    bool RenderFrame();
     //Handles: we obtain these from a VulkanApp object
     VkDevice hDevice = VK_NULL_HANDLE;
     uint32_t hGraphicsQueueFamilyIndex = UINT32_MAX;
@@ -42,6 +42,7 @@ protected:
     uint32_t mCurrentImageInd = 0;
     uint32_t mCurrentFrameInd = 0;
     uint32_t mCurrentPipelineInd = 0;
+    bool mSwapchainBeingRecreated = false;
 };
 
 

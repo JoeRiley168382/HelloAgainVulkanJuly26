@@ -4,8 +4,7 @@
 int main() 
 {
     BeeTriangleApp app{};
-    app.Start();
+    app.Start(app.mWinWidth, app.mWinHeight);
     app.RunLoop();
-    app.Stop();
     return 0;
 }

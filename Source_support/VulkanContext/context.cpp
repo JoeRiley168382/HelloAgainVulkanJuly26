@@ -1,6 +1,6 @@
 #include "context.h"
 
-bool VulkanApp::Setup(int aW, int aH)
+bool VulkanContext::Setup(int aW, int aH)
 {
     SDL_Init(SDL_INIT_VIDEO);
     volkInitialize();

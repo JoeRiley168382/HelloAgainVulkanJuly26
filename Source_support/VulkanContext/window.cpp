@@ -21,7 +21,7 @@ bool VulkanWindow::SetupWindow(VkInstance aInstance,  int aW,  int aH)
     if(aInstance == VK_NULL_HANDLE)
         return false;
     hInstance = aInstance;
-    mWindow = SDL_CreateWindow("Big boy Vulkan on my own", aW, aH, SDL_WINDOW_VULKAN);
+    mWindow = SDL_CreateWindow("Big boy Vulkan on my own", aW, aH, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     if(mWindow == nullptr)
         return false;
     if(!SDL_Vulkan_CreateSurface(mWindow, hInstance, nullptr, &mSurface))
@@ -90,7 +90,9 @@ bool VulkanWindow::SetupSwapchain(VulkanDevice& aDevice)
 	chainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	chainInfo.presentMode = presentMode;
 	chainInfo.clipped = VK_TRUE;
-	chainInfo.oldSwapchain = VK_NULL_HANDLE;
+    //If we've not setup swapchain yet, this will be null
+    //Otherwise, it will genuinely be the old swapchain
+	chainInfo.oldSwapchain = mSwapchain;
 	chainInfo.preTransform = surfaceCapabilities.currentTransform;
 	chainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     if(hDevice->mGraphicsQueueFamilyIndex == hDevice->mPresentQueueFamilyIndex)
@@ -102,6 +104,8 @@ bool VulkanWindow::SetupSwapchain(VulkanDevice& aDevice)
         chainInfo.pQueueFamilyIndices = queueInds;
     }
 	vkCreateSwapchainKHR(hDevice->mLogicalDevice, &chainInfo, nullptr, &mSwapchain);
+    if(chainInfo.oldSwapchain != VK_NULL_HANDLE)
+        vkDestroySwapchainKHR(hDevice->mLogicalDevice, chainInfo.oldSwapchain, nullptr);
 
     unsigned int numImages;
     vkGetSwapchainImagesKHR(hDevice->mLogicalDevice, mSwapchain, &numImages, nullptr);
@@ -131,4 +135,14 @@ bool VulkanWindow::SetupSwapchain(VulkanDevice& aDevice)
         mSwapViewList.emplace_back(view);
     }
     return true;
+}
+
+bool VulkanWindow::RecreateSwapchain()
+{
+    vkDeviceWaitIdle(hDevice->mLogicalDevice);
+    for(VkImageView view : mSwapViewList)
+        vkDestroyImageView(hDevice->mLogicalDevice, view, nullptr);
+    mSwapViewList.clear();
+    mSwapImageList.clear();
+    return SetupSwapchain(*hDevice);
 }
