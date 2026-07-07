@@ -24,6 +24,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(SDL3)
 
+# --- VulkanMemoryAllocator (VMA), fetched from source (header-only) ---
+FetchContent_Declare(
+    VMA
+    GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+    GIT_TAG        v3.1.0
+)
+FetchContent_MakeAvailable(VMA)
+
 # --- Shader compilation ---
 file(GLOB_RECURSE SHADER_SOURCES
     ${CMAKE_SOURCE_DIR}/Source_shaders/*.vert
@@ -53,6 +61,7 @@ file(GLOB_RECURSE VULKANAPP_SOURCES
 add_library(VulkanApp STATIC
     ${VULKANAPP_SOURCES}
     ${CMAKE_SOURCE_DIR}/External/volk.c
+    ${CMAKE_SOURCE_DIR}/External/vma_impl.cpp
 )
 
 target_include_directories(VulkanApp PUBLIC
@@ -60,7 +69,15 @@ target_include_directories(VulkanApp PUBLIC
     ${CMAKE_SOURCE_DIR}/Source_support
     ${CMAKE_SOURCE_DIR}/External
     ${Vulkan_INCLUDE_DIRS}
+    ${vma_SOURCE_DIR}/include
     $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
+# VMA must see the same "no static/dynamic Vulkan functions baked in" config in every
+# TU that includes it, since we load Vulkan through volk rather than linking vulkan-1.lib.
+target_compile_definitions(VulkanApp PUBLIC
+    VMA_STATIC_VULKAN_FUNCTIONS=0
+    VMA_DYNAMIC_VULKAN_FUNCTIONS=0
 )
 
 target_link_libraries(VulkanApp PUBLIC SDL3::SDL3)

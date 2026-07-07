@@ -4,6 +4,8 @@
 #include "volk.h"
 #include <vector>
 
+#include "renderObject.h"
+
 class VulkanRenderer{
 public:
     VulkanRenderer();
@@ -11,6 +13,7 @@ public:
     bool Setup(VkDevice, VkQueue, VkQueue, uint32_t, VkSwapchainKHR const, const std::vector<VkImageView>&, const std::vector<VkImage>&, VkFormat, VkExtent2D);
     //When we setup the app or add another class to handle data processing we can yank the info from the Vulkanpipeline class here instead of having to inherit it
     void AddPipeline(VkPipeline const, VkPipelineLayout const);
+    void AddRenderObject(VulkanRenderData);
     bool RenderFrame();
     //Handles: we obtain these from a VulkanApp object
     VkDevice hDevice = VK_NULL_HANDLE;
@@ -23,7 +26,6 @@ public:
     VkExtent2D hRenderExtent{};
     VkSwapchainKHR hSwapchain = VK_NULL_HANDLE;
 
-
 //May be in get/set hell with this down the line but I'm not sure if anything else will want to interfere with these
 protected:
     //TRUE = we can use the swapchain as is. FALSE = we need to recreate it (somehow)
@@ -32,13 +34,16 @@ protected:
     void RecordCommands();
     void SubmitCommands();
     //Members: these belong to us in full
-    std::vector<VkPipeline> mPipelineList{};
-    std::vector<VkPipelineLayout> mPipeLayoutList{};
     VkCommandPool mCmdPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> mCmdBuff{};
     std::vector<VkSemaphore> mImageAvailable{};
     std::vector<VkSemaphore> mRenderFinished{};
     std::vector<VkFence> mFrameInFlight{};
+
+    std::vector<VkPipeline> mPipelineList{};
+    std::vector<VkPipelineLayout> mPipeLayoutList{}; 
+    std::vector<VulkanRenderData> mRenderObjectList{};   
+
     uint32_t mCurrentImageInd = 0;
     uint32_t mCurrentFrameInd = 0;
     uint32_t mCurrentPipelineInd = 0;

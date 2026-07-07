@@ -105,6 +105,11 @@ void VulkanRenderer::AddPipeline(VkPipeline const aPipe, VkPipelineLayout const 
     mPipeLayoutList.push_back(aLO);
 }
 
+void VulkanRenderer::AddRenderObject(VulkanRenderData aRenderData)
+{
+    mRenderObjectList.push_back(std::move(aRenderData));
+}
+
 bool VulkanRenderer::RenderFrame()
 {
     vkWaitForFences(hDevice, 1, &mFrameInFlight[mCurrentFrameInd], VK_TRUE, UINT64_MAX);
@@ -200,8 +205,12 @@ void VulkanRenderer::RecordCommands()
     if(mPipelineList.empty() == false)
     {
         vkCmdBindPipeline(mCmdBuff[mCurrentFrameInd], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineList[mCurrentPipelineInd]);
-        //TODO: change this when using buffers!!
-        vkCmdDraw(mCmdBuff[mCurrentFrameInd], 3, 1, 0, 0);
+        for(VulkanRenderData const & buff : mRenderObjectList)
+        {
+            vkCmdBindVertexBuffers(mCmdBuff[mCurrentFrameInd], 0, static_cast<uint32_t>(buff.vertexBufferList.size()), buff.vertexBufferList.data(), buff.vertexOffsetList.data());
+            vkCmdBindIndexBuffer(mCmdBuff[mCurrentFrameInd], buff.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdDrawIndexed(mCmdBuff[mCurrentFrameInd], buff.numIndices, 1, 0, 0, 0);
+        }
     }
     vkCmdEndRendering(mCmdBuff[mCurrentFrameInd]);
 

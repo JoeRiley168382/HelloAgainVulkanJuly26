@@ -4,6 +4,7 @@
 #include "volk.h"
 #include <fstream>
 #include <string>
+#include <vector>
 
 class VulkanPipeline {
 public:
@@ -15,8 +16,8 @@ public:
     VkFormat hFormat;
     VkPipeline mPipe = VK_NULL_HANDLE;
     VkPipelineLayout mLayout = VK_NULL_HANDLE;
-    VkShaderModule mVertModule = VK_NULL_HANDLE;
-    VkShaderModule mFragModule = VK_NULL_HANDLE;
+    std::vector<char> mVertCode{};
+    std::vector<char> mFragCode{};
     //Add module variables if we ever use tesselation/compute/geometry etc etc
 };
 

@@ -5,22 +5,18 @@ bool VulkanPipeline::AddShader(std::string const &aPath)
     std::ifstream file(std::string(SHADER_DIR) + aPath, std::ios::binary | std::ios::ate);
     std::streamsize fileSize = file.tellg();
     file.seekg(0, std::ios::beg);
-    char *shaderData = (char*) malloc(fileSize * sizeof(char));
-    file.read(shaderData, fileSize);
-
-    VkShaderModuleCreateInfo shaderInfo{};
-    bool retVal;
-    shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    shaderInfo.codeSize = fileSize;
-    shaderInfo.pCode = reinterpret_cast<const uint32_t*> (shaderData);
-    if(aPath.rfind(".vert.spv") != std::string::npos)
-        retVal = vkCreateShaderModule(hDevice, &shaderInfo, nullptr, &mVertModule) == VK_SUCCESS;
-    else if(aPath.rfind(".frag.spv") != std::string::npos)
-        retVal = vkCreateShaderModule(hDevice, &shaderInfo, nullptr, &mFragModule) == VK_SUCCESS;
+    if(aPath.rfind(".vert.spv") != std::string::npos) {
+        mVertCode.resize(fileSize);
+        file.read(mVertCode.data(), fileSize);
+    }
+    else if(aPath.rfind(".frag.spv") != std::string::npos) {    
+        mFragCode.resize(fileSize);
+        file.read(mFragCode.data(), fileSize);
+    }
     else
-        retVal = false;
-    free(shaderData);
-    return retVal;
+        return false;
+    
+    return true;
 }
 
 bool VulkanPipeline::Setup()
@@ -29,12 +25,22 @@ bool VulkanPipeline::Setup()
     stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
     stages[0].pName = "main";
-    stages[0].module = mVertModule;
+    VkShaderModuleCreateInfo vertModuleInfo{};
+    vertModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    vertModuleInfo.codeSize = mVertCode.size();
+    vertModuleInfo.pCode = reinterpret_cast<const uint32_t*>(mVertCode.data());
+    stages[0].pNext = &vertModuleInfo;
+    stages[0].module = VK_NULL_HANDLE;
 
     stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     stages[1].pName = "main";
-    stages[1].module = mFragModule;
+    VkShaderModuleCreateInfo fragModuleInfo{};
+    fragModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    fragModuleInfo.codeSize = mFragCode.size();
+    fragModuleInfo.pCode = reinterpret_cast<const uint32_t*>(mFragCode.data());
+    stages[1].pNext = &fragModuleInfo;
+    stages[1].module = VK_NULL_HANDLE;
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -100,10 +106,5 @@ bool VulkanPipeline::Setup()
     pipeInfo.pNext = &renderingInfo;
     pipeInfo.layout = mLayout;
 
-    bool retVal = vkCreateGraphicsPipelines(hDevice, VK_NULL_HANDLE, 1, &pipeInfo, nullptr, &mPipe) == VK_SUCCESS;
-    vkDestroyShaderModule(hDevice, mVertModule, nullptr);
-    mVertModule = VK_NULL_HANDLE;
-    vkDestroyShaderModule(hDevice, mFragModule, nullptr);
-    mFragModule = VK_NULL_HANDLE;
-    return retVal;
+    return vkCreateGraphicsPipelines(hDevice, VK_NULL_HANDLE, 1, &pipeInfo, nullptr, &mPipe) == VK_SUCCESS;
 }
