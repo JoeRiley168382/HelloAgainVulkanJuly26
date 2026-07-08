@@ -10,11 +10,11 @@
 #include "device.h"
 #include "window.h"
 
-class VulkanContext {
+class Context {
 public:
     bool Setup(int aW, int aH);
     //Needs to be here due to the allocator
-    ~VulkanContext();
+    ~Context();
     //Declaration order matters: members destruct in reverse, and we need
     //mWindow's surface/swapchain gone before mDevice, and mDevice gone
     //before mInstance (a device must not outlive the instance it came from).

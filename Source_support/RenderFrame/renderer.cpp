@@ -1,18 +1,13 @@
 #include "renderer.h"
 
-VulkanRenderer::VulkanRenderer()
+Renderer::Renderer()
 {
 }
 
-VulkanRenderer::~VulkanRenderer()
+Renderer::~Renderer()
 {
     if(hDevice != VK_NULL_HANDLE)
         vkDeviceWaitIdle(hDevice);
-    for(uint32_t i = 0; i < mPipelineList.size(); i++)
-    {
-        vkDestroyPipeline(hDevice, mPipelineList[i], nullptr);
-        vkDestroyPipelineLayout(hDevice, mPipeLayoutList[i], nullptr);
-    }
     vkDestroyFence(hDevice, mFrameInFlight[1], nullptr);
     vkDestroySemaphore(hDevice, mImageAvailable[1], nullptr);
     vkDestroyFence(hDevice, mFrameInFlight[0], nullptr);
@@ -22,15 +17,15 @@ VulkanRenderer::~VulkanRenderer()
     vkDestroyCommandPool(hDevice, mCmdPool, nullptr);
 }
 
-bool VulkanRenderer::Setup(
-    VkDevice aLogicalDevice, 
-    VkQueue aGraphicsQueue, 
-    VkQueue aPresentQueue, 
-    uint32_t aGraphicsIndex, 
-    VkSwapchainKHR const aSwapchain, 
+bool Renderer::Setup(
+    VkDevice aLogicalDevice,
+    VkQueue aGraphicsQueue,
+    VkQueue aPresentQueue,
+    uint32_t aGraphicsIndex,
+    VkSwapchainKHR const aSwapchain,
     const std::vector<VkImageView> & aImageViewList,
-    const std::vector<VkImage> & aImageList, 
-    VkFormat aSwapchainFormat, 
+    const std::vector<VkImage> & aImageList,
+    VkFormat aSwapchainFormat,
     VkExtent2D aSwapchainExtent)
 {
     hDevice = aLogicalDevice;
@@ -66,7 +61,7 @@ bool VulkanRenderer::Setup(
     cmdBuffInfo.commandBufferCount = 2;
     if(vkAllocateCommandBuffers(hDevice, &cmdBuffInfo, mCmdBuff.data()) != VK_SUCCESS)
         return false;
-    
+
     if(!mRenderFinished.empty())
     {
         for(VkSemaphore &sem : mRenderFinished)
@@ -97,25 +92,12 @@ bool VulkanRenderer::Setup(
     return true;
 }
 
-void VulkanRenderer::AddPipeline(VkPipeline const aPipe, VkPipelineLayout const aLO)
-{
-    if(aPipe == VK_NULL_HANDLE || aLO == VK_NULL_HANDLE)
-        return;
-    mPipelineList.push_back(aPipe);
-    mPipeLayoutList.push_back(aLO);
-}
-
-void VulkanRenderer::AddRenderObject(VulkanRenderData aRenderData)
-{
-    mRenderObjectList.push_back(std::move(aRenderData));
-}
-
-bool VulkanRenderer::RenderFrame()
+bool Renderer::RenderFrame(DrawList const& aDrawList)
 {
     vkWaitForFences(hDevice, 1, &mFrameInFlight[mCurrentFrameInd], VK_TRUE, UINT64_MAX);
     vkResetFences(hDevice, 1, &mFrameInFlight[mCurrentFrameInd]);
     if(!AcquireSwapchain()) return false;
-    RecordCommands();
+    RecordCommands(aDrawList);
     SubmitCommands();
     //This info is passed through submitCommands, helps catch swapchain resizes a frame earlier
     if(mSwapchainBeingRecreated) return false;
@@ -134,7 +116,7 @@ bool VulkanRenderer::RenderFrame()
     return true;
 }
 
-bool VulkanRenderer::AcquireSwapchain()
+bool Renderer::AcquireSwapchain()
 {
     VkResult result = vkAcquireNextImageKHR(hDevice, hSwapchain, UINT64_MAX, mImageAvailable[mCurrentFrameInd], VK_NULL_HANDLE, &mCurrentImageInd);
     if(result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -143,7 +125,7 @@ bool VulkanRenderer::AcquireSwapchain()
     return result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
 }
 
-void VulkanRenderer::RecordCommands()
+void Renderer::RecordCommands(DrawList const& aDrawList)
 {
     vkResetCommandBuffer(mCmdBuff[mCurrentFrameInd], 0);
     VkCommandBufferBeginInfo beginInfo{};
@@ -156,11 +138,11 @@ void VulkanRenderer::RecordCommands()
     undef2ColorImgBarr.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 
     undef2ColorImgBarr.image = (*hImageList)[mCurrentImageInd];
-    
+
     undef2ColorImgBarr.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
     undef2ColorImgBarr.srcAccessMask = VK_ACCESS_2_NONE;
     undef2ColorImgBarr.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    
+
     undef2ColorImgBarr.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
     undef2ColorImgBarr.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
     undef2ColorImgBarr.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -178,9 +160,9 @@ void VulkanRenderer::RecordCommands()
     colorAttach.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttach.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttach.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    VkClearValue clearYellow{};
-    clearYellow.color = {{1.0f, 1.0f, 0.0f, 1.0f}};
-    colorAttach.clearValue = clearYellow;
+    VkClearValue grey{};
+    grey.color = {{0.2f, 0.2f, 0.2f, 1.0f}};
+    colorAttach.clearValue = grey;
 
     VkRenderingInfo renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -201,11 +183,18 @@ void VulkanRenderer::RecordCommands()
     VkRect2D scissor{};
     scissor.extent = hRenderExtent;
     vkCmdSetScissor(mCmdBuff[mCurrentFrameInd], 0, 1, &scissor);
-    
-    if(mPipelineList.empty() == false)
+
+    if(aDrawList.mPipelineList.empty() == false)
     {
-        vkCmdBindPipeline(mCmdBuff[mCurrentFrameInd], VK_PIPELINE_BIND_POINT_GRAPHICS, mPipelineList[mCurrentPipelineInd]);
-        for(VulkanRenderData const & buff : mRenderObjectList)
+        vkCmdBindPipeline(mCmdBuff[mCurrentFrameInd], VK_PIPELINE_BIND_POINT_GRAPHICS, aDrawList.mPipelineList[aDrawList.mCurrentPipelineInd]);
+        std::vector<VkDescriptorSet> const& descriptorSets = aDrawList.mDescriptorSetList[aDrawList.mCurrentPipelineInd];
+        if(descriptorSets.empty() == false)
+        {
+            VkDescriptorSet currentSet = descriptorSets[mCurrentFrameInd];
+            vkCmdBindDescriptorSets(mCmdBuff[mCurrentFrameInd], VK_PIPELINE_BIND_POINT_GRAPHICS,
+                aDrawList.mPipeLayoutList[aDrawList.mCurrentPipelineInd], 0, 1, &currentSet, 0, nullptr);
+        }
+        for(VulkanRenderData const & buff : aDrawList.mRenderObjectList)
         {
             vkCmdBindVertexBuffers(mCmdBuff[mCurrentFrameInd], 0, static_cast<uint32_t>(buff.vertexBufferList.size()), buff.vertexBufferList.data(), buff.vertexOffsetList.data());
             vkCmdBindIndexBuffer(mCmdBuff[mCurrentFrameInd], buff.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -234,7 +223,7 @@ void VulkanRenderer::RecordCommands()
     vkEndCommandBuffer(mCmdBuff[mCurrentFrameInd]);
 }
 
-void VulkanRenderer::SubmitCommands()
+void Renderer::SubmitCommands()
 {
     VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo submitInfo{};

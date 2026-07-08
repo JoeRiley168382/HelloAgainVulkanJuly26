@@ -1,10 +1,11 @@
 #include "app.h"
 
-bool VulkanApp::Start(int aW, int aH)
+bool App::Start(int aW, int aH)
 {
 
     if(!mContext.Setup(aW, aH)) return false;
     SetupPipelines();
+    SetupRenderObjects();
     if(!mRenderer.Setup(
                         mContext.mDevice.mLogicalDevice,
                         mContext.mDevice.mGraphicsQueue,
@@ -20,7 +21,7 @@ bool VulkanApp::Start(int aW, int aH)
     return true;
 }
 
-void VulkanApp::RunLoop()
+void App::RunLoop()
 {
     bool IsRunning = true;
     uint64_t numFrames = 0;
@@ -35,12 +36,19 @@ void VulkanApp::RunLoop()
         }
         //Update
         numFrames++;
-        if(!mRenderer.RenderFrame())
+        UpdateUniforms(mRenderer.GetCurrentFrameInd());
+        if(!DrawFrame())
             HandleResize();
     }
+    //Derived-app members (pipelines, buffers) destruct before mRenderer/mContext
+    //do, so we can't rely on Renderer's destructor to wait for the GPU - by the
+    //time it runs, those resources are already gone. Wait here instead, before
+    //any destruction has begun.
+    if(mContext.mDevice.mLogicalDevice != VK_NULL_HANDLE)
+        vkDeviceWaitIdle(mContext.mDevice.mLogicalDevice);
 }
 
-bool VulkanApp::HandleResize()
+bool App::HandleResize()
 {
     int w = 0, h = 0;
     SDL_GetWindowSizeInPixels(mContext.mWindow.mWindow, &w, &h);

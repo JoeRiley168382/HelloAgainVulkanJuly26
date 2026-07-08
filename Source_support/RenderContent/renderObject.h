@@ -38,8 +38,7 @@ struct DataSetup{
     VulkanRenderData& hData;
     template<typename ... AttributeData>
     void operator()(AttributeData const& ... aData) const {
-        (hData.vertexBufferList.push_back(aData.buffer), ...);
-        (hData.vertexOffsetList.push_back(0), ...);
+        ( (hData.vertexBufferList.push_back(aData.buffer), hData.vertexOffsetList.push_back(0)), ...);
     }
 };
 

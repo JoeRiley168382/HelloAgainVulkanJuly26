@@ -52,20 +52,20 @@ foreach(shader ${SHADER_SOURCES})
 endforeach()
 add_custom_target(Shaders DEPENDS ${SHADER_OUTPUTS})
 
-# --- VulkanApp static library (volk.c lives here since it owns Vulkan loading) ---
-file(GLOB_RECURSE VULKANAPP_SOURCES
-    ${CMAKE_SOURCE_DIR}/Source_support/VulkanApp/*.cpp
-    ${CMAKE_SOURCE_DIR}/Source_support/VulkanApp/*.h
+# --- App static library (volk.c lives here since it owns Vulkan loading) ---
+file(GLOB_RECURSE APP_SOURCES
+    ${CMAKE_SOURCE_DIR}/Source_support/App/*.cpp
+    ${CMAKE_SOURCE_DIR}/Source_support/App/*.h
 )
 
-add_library(VulkanApp STATIC
-    ${VULKANAPP_SOURCES}
+add_library(App STATIC
+    ${APP_SOURCES}
     ${CMAKE_SOURCE_DIR}/External/volk.c
     ${CMAKE_SOURCE_DIR}/External/vma_impl.cpp
 )
 
-target_include_directories(VulkanApp PUBLIC
-    ${CMAKE_SOURCE_DIR}/Source_support/VulkanApp
+target_include_directories(App PUBLIC
+    ${CMAKE_SOURCE_DIR}/Source_support/App
     ${CMAKE_SOURCE_DIR}/Source_support
     ${CMAKE_SOURCE_DIR}/External
     ${Vulkan_INCLUDE_DIRS}
@@ -73,46 +73,58 @@ target_include_directories(VulkanApp PUBLIC
     $<TARGET_PROPERTY:SDL3::SDL3,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
-# VMA must see the same "no static/dynamic Vulkan functions baked in" config in every
-# TU that includes it, since we load Vulkan through volk rather than linking vulkan-1.lib.
-target_compile_definitions(VulkanApp PUBLIC
+# VMA must see the same "fetch functions dynamically via the two ProcAddr
+# pointers we give it, don't link vulkan-1.lib" config in every TU that
+# includes it, since we load Vulkan through volk rather than linking directly.
+target_compile_definitions(App PUBLIC
     VMA_STATIC_VULKAN_FUNCTIONS=0
-    VMA_DYNAMIC_VULKAN_FUNCTIONS=0
+    VMA_DYNAMIC_VULKAN_FUNCTIONS=1
 )
 
-target_link_libraries(VulkanApp PUBLIC SDL3::SDL3)
+target_link_libraries(App PUBLIC SDL3::SDL3)
 
-target_compile_options(VulkanApp PRIVATE
+target_compile_options(App PRIVATE
     $<$<CONFIG:Debug>:/Od /Zi /W4>
     $<$<CONFIG:Release>:/O2 /W4>
 )
 
-# --- One library per subdirectory of Source_support (except VulkanApp) ---
+# --- One library per subdirectory of Source_support (except App) ---
 file(GLOB SUPPORT_DIRS LIST_DIRECTORIES true ${CMAKE_SOURCE_DIR}/Source_support/*)
 set(SUPPORT_LIBS "")
 foreach(dir ${SUPPORT_DIRS})
     if(IS_DIRECTORY ${dir})
         get_filename_component(lib_name ${dir} NAME)
-        if(lib_name STREQUAL "VulkanApp")
+        if(lib_name STREQUAL "App")
             continue()
         endif()
+        file(GLOB_RECURSE lib_cpp_sources ${dir}/*.cpp)
         file(GLOB_RECURSE lib_sources ${dir}/*.cpp ${dir}/*.h)
         if(lib_sources)
-            add_library(${lib_name} STATIC ${lib_sources})
-            target_include_directories(${lib_name} PUBLIC
+            # Header-only directories (e.g. Maths) get an INTERFACE library instead of
+            # STATIC, since STATIC with zero compiled sources produces no archive at all.
+            if(lib_cpp_sources)
+                add_library(${lib_name} STATIC ${lib_sources})
+                set(lib_scope PUBLIC)
+            else()
+                add_library(${lib_name} INTERFACE)
+                set(lib_scope INTERFACE)
+            endif()
+            target_include_directories(${lib_name} ${lib_scope}
                 ${dir}
                 ${CMAKE_SOURCE_DIR}/Source_support
             )
-            target_link_libraries(${lib_name} PUBLIC VulkanApp)
-            if(lib_name STREQUAL "VulkanRenderer")
-                target_compile_definitions(${lib_name} PRIVATE
+            target_link_libraries(${lib_name} ${lib_scope} App)
+            if(lib_name STREQUAL "RenderContent")
+                target_compile_definitions(${lib_name} ${lib_scope}
                     SHADER_DIR="${CMAKE_SOURCE_DIR}/Bin_shaders/"
                 )
             endif()
-            target_compile_options(${lib_name} PRIVATE
-                $<$<CONFIG:Debug>:/Od /Zi /W4>
-                $<$<CONFIG:Release>:/O2 /W4>
-            )
+            if(lib_cpp_sources)
+                target_compile_options(${lib_name} PRIVATE
+                    $<$<CONFIG:Debug>:/Od /Zi /W4>
+                    $<$<CONFIG:Release>:/O2 /W4>
+                )
+            endif()
             list(APPEND SUPPORT_LIBS ${lib_name})
         endif()
     endif()

@@ -4,18 +4,18 @@
 #include "volk.h"
 #include <vector>
 
-#include "renderObject.h"
+#include "RenderContent/drawList.h"
 
-class VulkanRenderer{
+class Renderer{
 public:
-    VulkanRenderer();
-    ~VulkanRenderer();
+    Renderer();
+    ~Renderer();
     bool Setup(VkDevice, VkQueue, VkQueue, uint32_t, VkSwapchainKHR const, const std::vector<VkImageView>&, const std::vector<VkImage>&, VkFormat, VkExtent2D);
-    //When we setup the app or add another class to handle data processing we can yank the info from the Vulkanpipeline class here instead of having to inherit it
-    void AddPipeline(VkPipeline const, VkPipelineLayout const);
-    void AddRenderObject(VulkanRenderData);
-    bool RenderFrame();
-    //Handles: we obtain these from a VulkanApp object
+    bool RenderFrame(DrawList const& aDrawList);
+    //Frame-in-flight index that the *next* RenderFrame call will record/present with.
+    //Uniform data for that frame should be written before calling RenderFrame.
+    inline uint32_t GetCurrentFrameInd() const { return mCurrentFrameInd; }
+    //Handles: we obtain these from an App object
     VkDevice hDevice = VK_NULL_HANDLE;
     uint32_t hGraphicsQueueFamilyIndex = UINT32_MAX;
     VkQueue hGraphicsQueue = VK_NULL_HANDLE;
@@ -31,7 +31,7 @@ protected:
     //TRUE = we can use the swapchain as is. FALSE = we need to recreate it (somehow)
     bool AcquireSwapchain();
     //TODO: Maybe need an UpdateState/UpdateUniforms down the line?
-    void RecordCommands();
+    void RecordCommands(DrawList const& aDrawList);
     void SubmitCommands();
     //Members: these belong to us in full
     VkCommandPool mCmdPool = VK_NULL_HANDLE;
@@ -40,13 +40,8 @@ protected:
     std::vector<VkSemaphore> mRenderFinished{};
     std::vector<VkFence> mFrameInFlight{};
 
-    std::vector<VkPipeline> mPipelineList{};
-    std::vector<VkPipelineLayout> mPipeLayoutList{}; 
-    std::vector<VulkanRenderData> mRenderObjectList{};   
-
     uint32_t mCurrentImageInd = 0;
     uint32_t mCurrentFrameInd = 0;
-    uint32_t mCurrentPipelineInd = 0;
     bool mSwapchainBeingRecreated = false;
 };
 
